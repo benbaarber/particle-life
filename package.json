@@ -1,0 +1,12 @@
+{
+  "name": "particle-life",
+  "version": "1.0.0",
+  "main": "server/index.js",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@wasm-tool/wasm-pack-plugin": "^1.7.0"
+  }
+}
