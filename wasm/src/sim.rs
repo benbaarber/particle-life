@@ -95,7 +95,7 @@ impl PetriDish {
     pub fn new(colors: Vec<String>, world_size: u32, population: usize) -> Self {
         let cultures = colors
             .into_iter()
-            .map(|color| Culture::new(color.to_string(), world_size, population))
+            .map(|color| Culture::new(color, world_size, population))
             .collect::<Vec<_>>();
         let num_cultures = cultures.len();
         let mut rng = rand::thread_rng();
@@ -149,7 +149,7 @@ impl PetriDish {
             .iter()
             .enumerate()
             .map(|(i, c1)| {
-                let initial_forces = vec![na::vector![0., 0.]; 20];
+                let initial_forces = vec![na::vector![0., 0.]; self.population_per_culture];
                 self.cultures
                     .iter()
                     .enumerate()
