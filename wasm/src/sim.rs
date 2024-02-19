@@ -1,17 +1,10 @@
-#![allow(unused)]
-use na::{DMatrix, Point2, SimdPartialOrd, Vector2};
+use na::{Point2, Vector2};
 use nalgebra as na;
 use rand::{
     distributions::{Distribution, Uniform},
     Rng,
 };
 use serde::{ser::SerializeSeq, Serialize};
-use serde_json::Value;
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    thread,
-};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Debug)]
@@ -199,7 +192,7 @@ fn test() {
         1,
     );
     println!("Before: {:#}", serde_json::to_value(&pd).unwrap());
-    for i in 0..100 {
+    for _ in 0..100 {
         pd.step()
     }
     println!("After: {:#}", serde_json::to_value(&pd).unwrap());
