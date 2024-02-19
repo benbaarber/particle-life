@@ -179,6 +179,10 @@ impl PetriDish {
         }
     }
 
+    pub fn cultures(&self) -> String {
+        serde_json::to_string(&self.cultures).unwrap()
+    }
+
     pub fn gravity_mesh(&self) -> String {
         serde_json::to_string(&self.gravity_mesh).unwrap()
     }
