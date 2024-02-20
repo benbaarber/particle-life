@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "outDir": "../dist/server",
+    "module": "CommonJS",
+    "allowJs": true,
+    "lib": [
+      "ES2015"
+    ],
+    "rootDir": "src",
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": false,
+    "strictNullChecks": true
+  },
+  "include": [ "src/**/*" ],
+}

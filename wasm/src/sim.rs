@@ -193,10 +193,10 @@ fn test() {
     let mut pd = PetriDish::new(
         vec!["red".to_string(), "blue".to_string(), "green".to_string()],
         200,
-        1,
+        200,
     );
     println!("Before: {:#}", serde_json::to_value(&pd).unwrap());
-    for _ in 0..100 {
+    for _ in 0..10 {
         pd.step()
     }
     println!("After: {:#}", serde_json::to_value(&pd).unwrap());

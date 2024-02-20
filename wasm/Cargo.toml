@@ -1,11 +1,11 @@
 [package]
-name = "wasm"
+name = "particle-life-wasm"
 version = "0.1.0"
-authors = ["Ben Barber <ben@flamel.ai>"]
+authors = ["Ben Barber <benbarber121@gmail.com>"]
 edition = "2018"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [features]
 default = ["console_error_panic_hook"]

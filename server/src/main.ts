@@ -2,13 +2,9 @@ import express from "express";
 import path from "path";
 
 const app = express();
+const staticPath = path.resolve(__dirname, "client");
 
-app.use("/", express.static(__dirname))
-
-// Serve the HTML file
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'life.html'));
-});
+app.use("/", express.static(staticPath));
 
 // Start the server
 app.listen(8080, () => {
