@@ -1,4 +1,8 @@
 pub fn set_panic_hook() {
+    // # The `console_error_panic_hook` crate provides better debugging of panics by
+    // # logging them with `console.error`. This is great for development, but requires
+    // # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+    // # code size when deploying.
     // When the `console_error_panic_hook` feature is enabled, we can call the
     // `set_panic_hook` function at least once during initialization, and then
     // we will get better error messages if our code ever panics.

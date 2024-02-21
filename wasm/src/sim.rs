@@ -5,7 +5,8 @@ use rand::{
     Rng,
 };
 use serde::{ser::SerializeSeq, Serialize};
-use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 #[derive(Debug)]
 struct Particle {
@@ -27,10 +28,10 @@ impl Particle {
 
     /// Get the force another particle exerts on this particle given the gravitational constant g.
     fn force(&self, other: &Particle, g: f64) -> Vector2<f64> {
-        let d = (self.pos - other.pos).abs();
-        let md = d.magnitude();
-        if md > 0. && md < 80. {
-            d * (g / md) * 0.5
+        let dp = self.pos - other.pos;
+        let d = na::distance(&self.pos, &other.pos);
+        if d > 0. && d < 80. {
+            dp * (g / d) * 0.5
         } else {
             na::vector![0., 0.]
         }
@@ -85,29 +86,53 @@ pub struct PetriDish {
     world_size: u32,
     population_per_culture: usize,
     cultures: Vec<Culture>,
-    #[serde(skip)]
     gravity_mesh: Vec<Vec<f64>>,
+    #[serde(skip)]
+    cx: CanvasRenderingContext2d,
 }
 
 #[wasm_bindgen]
 impl PetriDish {
     #[wasm_bindgen(constructor)]
     pub fn new(colors: Vec<String>, world_size: u32, population: usize) -> Self {
+        // Set panic hook
+        crate::utils::set_panic_hook();
+
+        // Birth cultures
         let cultures = colors
             .into_iter()
             .map(|color| Culture::new(color, world_size, population))
             .collect::<Vec<_>>();
+
+        // Generate random gravity mesh
         let num_cultures = cultures.len();
         let mut rng = rand::thread_rng();
         let distr = Uniform::new_inclusive(-1., 1.);
         let gravity_mesh = (0..num_cultures)
             .map(|_| distr.sample_iter(&mut rng).take(num_cultures).collect())
             .collect();
+
+        // Bind to HTML Canvas
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas: HtmlCanvasElement = canvas
+            .dyn_into::<HtmlCanvasElement>()
+            .map_err(|_| ())
+            .unwrap();
+
+        let cx = canvas
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<CanvasRenderingContext2d>()
+            .unwrap();
+
         Self {
             world_size,
             population_per_culture: population,
             cultures,
             gravity_mesh,
+            cx,
         }
     }
 
@@ -168,23 +193,31 @@ impl PetriDish {
             for (j, p) in culture.particles.iter_mut().enumerate() {
                 let force = force_tensor[i][j];
                 p.vel = (p.vel + force) * 0.5;
-                p.pos += p.vel;
                 if p.pos.x <= 0. {
                     p.vel.x = (p.vel.x as f64).abs();
-                    // p.pos.x = 0.;
-                }
-                if p.pos.x >= self.world_size as f64 {
+                } else if p.pos.x >= self.world_size as f64 {
                     p.vel.x = -(p.vel.x as f64).abs();
-                    // p.pos.x = self.world_size as f64;
                 }
                 if p.pos.y <= 0. {
                     p.vel.y = (p.vel.y as f64).abs();
-                    // p.pos.y = 0.;
-                }
-                if p.pos.y >= self.world_size as f64 {
+                } else if p.pos.y >= self.world_size as f64 {
                     p.vel.y = -(p.vel.y as f64).abs();
-                    // p.pos.y = self.world_size as f64;
                 }
+                p.pos += p.vel;
+            }
+        }
+
+        // Render on HTML Canvas
+        self.cx.clear_rect(
+            0.,
+            0.,
+            self.world_size as f64 * 2.,
+            self.world_size as f64 * 2.,
+        );
+        for Culture { color, particles } in &self.cultures {
+            self.cx.set_fill_style(&JsValue::from_str(color));
+            for Particle { pos, .. } in particles {
+                self.cx.fill_rect(pos.x, pos.y, 5., 5.);
             }
         }
     }
@@ -196,37 +229,4 @@ impl PetriDish {
     pub fn gravity_mesh(&self) -> String {
         serde_json::to_string(&self.gravity_mesh).unwrap()
     }
-}
-
-// #[test]
-// fn test() {
-//     let mut pd = PetriDish::new(
-//         vec!["red".to_string(), "blue".to_string(), "green".to_string()],
-//         200,
-//         200,
-//     );
-//     // println!("Before: {:#}", serde_json::to_value(&pd).unwrap());
-//     // let now = Instant::now();
-//     for _ in 0..10 {
-//         pd.step();
-//         // println!("STEP {} {:.2?}", i+1, now.elapsed());
-//     }
-//     // println!("After: {:#}", serde_json::to_value(&pd).unwrap());
-//     // println!("Gravity Mesh: {:#}", pd.gravity_mesh())
-// }
-
-#[test]
-fn test_na() {
-    let culture = Culture::new("a".to_string(), 100, 2);
-    let is_same = std::ptr::eq(&culture.particles[0], &culture.particles[1]);
-    println!("is same? {}", is_same);
-    // let mut v = na::vector![0., 0.];
-    // println!("{}", v);
-    // v.x = 5.;
-    // v.x = (v.x as f64).abs();
-    // println!("{}", v);
-    // let mut p = na::point![0., 0.];
-    // println!("{}", p);
-    // p.x = 5.;
-    // println!("{}", p);
 }
