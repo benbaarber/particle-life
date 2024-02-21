@@ -30,7 +30,7 @@ impl Particle {
         let d = (self.pos - other.pos).abs();
         let md = d.magnitude();
         if md > 0. && md < 80. {
-            d.map(|c| g * (1. / c))
+            d * (g / md) * 0.5
         } else {
             na::vector![0., 0.]
         }
@@ -154,7 +154,7 @@ impl PetriDish {
                     .iter()
                     .enumerate()
                     .fold(initial_forces, |acc, (j, c2)| {
-                        let forces = c1.force(c2, self.gravity_mesh[i][j]);
+                        let forces = c1.force(c2, self.gravity_mesh[i][j].clone());
                         acc.into_iter()
                             .zip(forces)
                             .map(|(f1, f2)| f1 + f2)
@@ -169,11 +169,21 @@ impl PetriDish {
                 let force = force_tensor[i][j];
                 p.vel = (p.vel + force) * 0.5;
                 p.pos += p.vel;
-                if p.pos.x <= 0. || p.pos.x >= self.world_size as f64 {
-                    p.vel.x *= -1.;
+                if p.pos.x <= 0. {
+                    p.vel.x = (p.vel.x as f64).abs();
+                    // p.pos.x = 0.;
                 }
-                if p.pos.y <= 0. || p.pos.y >= self.world_size as f64 {
-                    p.vel.y *= -1.;
+                if p.pos.x >= self.world_size as f64 {
+                    p.vel.x = -(p.vel.x as f64).abs();
+                    // p.pos.x = self.world_size as f64;
+                }
+                if p.pos.y <= 0. {
+                    p.vel.y = (p.vel.y as f64).abs();
+                    // p.pos.y = 0.;
+                }
+                if p.pos.y >= self.world_size as f64 {
+                    p.vel.y = -(p.vel.y as f64).abs();
+                    // p.pos.y = self.world_size as f64;
                 }
             }
         }
@@ -188,17 +198,35 @@ impl PetriDish {
     }
 }
 
+// #[test]
+// fn test() {
+//     let mut pd = PetriDish::new(
+//         vec!["red".to_string(), "blue".to_string(), "green".to_string()],
+//         200,
+//         200,
+//     );
+//     // println!("Before: {:#}", serde_json::to_value(&pd).unwrap());
+//     // let now = Instant::now();
+//     for _ in 0..10 {
+//         pd.step();
+//         // println!("STEP {} {:.2?}", i+1, now.elapsed());
+//     }
+//     // println!("After: {:#}", serde_json::to_value(&pd).unwrap());
+//     // println!("Gravity Mesh: {:#}", pd.gravity_mesh())
+// }
+
 #[test]
-fn test() {
-    let mut pd = PetriDish::new(
-        vec!["red".to_string(), "blue".to_string(), "green".to_string()],
-        200,
-        200,
-    );
-    println!("Before: {:#}", serde_json::to_value(&pd).unwrap());
-    for _ in 0..10 {
-        pd.step()
-    }
-    println!("After: {:#}", serde_json::to_value(&pd).unwrap());
-    println!("Gravity Mesh: {:#}", pd.gravity_mesh())
+fn test_na() {
+    let culture = Culture::new("a".to_string(), 100, 2);
+    let is_same = std::ptr::eq(&culture.particles[0], &culture.particles[1]);
+    println!("is same? {}", is_same);
+    // let mut v = na::vector![0., 0.];
+    // println!("{}", v);
+    // v.x = 5.;
+    // v.x = (v.x as f64).abs();
+    // println!("{}", v);
+    // let mut p = na::point![0., 0.];
+    // println!("{}", p);
+    // p.x = 5.;
+    // println!("{}", p);
 }

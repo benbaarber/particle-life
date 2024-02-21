@@ -1,15 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 
-const animation = (cx: any, pd: any) => {
+const animation = (cx: CanvasRenderingContext2D, pd: any) => {
   let last = 0;
   const animate = (time?: number) => {
     last ||= time;
     if (true) {
-      console.log("before");
       pd.step();
-      console.log("after");
       const cultures = JSON.parse(pd.cultures());
-      cx.clearRect(0, 0, 500, 500);
+      cx.clearRect(0, 0, 2000, 2000);
       for (const { color, particles } of cultures) {
         cx.fillStyle = color;
         for (const p of particles) {
@@ -34,13 +32,12 @@ const Simulation: React.FC = () => {
   useEffect(() => {
     if (!wasm) return;
     const cx = canvas.current.getContext("2d");
-    const pd = new wasm.PetriDish(["red", "blue", "green", "yellow", "pink"], 500, 200);
-    console.log("HIT")
+    const pd = new wasm.PetriDish(["red", "blue", "green", "yellow", "pink"], 500, 50);
     animation(cx, pd);
   }, [wasm])
 
   return (
-    <canvas width={500} height={500} ref={canvas} />
+    <canvas width={2000} height={2000} ref={canvas} />
   );
 };
 
