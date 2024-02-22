@@ -84,7 +84,6 @@ impl Culture {
 #[wasm_bindgen]
 pub struct PetriDish {
     world_size: u32,
-    population_per_culture: usize,
     cultures: Vec<Culture>,
     gravity_mesh: Vec<Vec<f64>>,
     #[serde(skip)]
@@ -129,43 +128,11 @@ impl PetriDish {
 
         Self {
             world_size,
-            population_per_culture: population,
             cultures,
             gravity_mesh,
             cx,
         }
     }
-
-    // pub fn step(&mut self) {
-    //     let arc_cultures = self
-    //         .cultures
-    //         .iter()
-    //         .map(|c| Arc::new(RwLock::new(c)))
-    //         .collect::<Vec<_>>();
-    //     let arc_gravity = self
-    //         .gravity_mesh
-    //         .iter()
-    //         .map(|g| Arc::new(RwLock::new(g)))
-    //         .collect::<Vec<_>>();
-    //     let mut handles = Vec::with_capacity(self.cultures.len());
-    //     for i in 0..self.cultures.len() {
-    //         let cultures = arc_cultures.iter().map(Arc::clone).collect::<Vec<_>>();
-    //         let gravity_vecs = arc_gravity.iter().map(Arc::clone).collect::<Vec<_>>();
-    //         let handle = thread::spawn(move || {
-    //             let c1 = cultures[i].read().unwrap();
-    //             let gravity_vec = gravity_vecs[i].read().unwrap();
-    //             for j in 0..cultures.len() {
-    //                 let c2 = cultures[j].read().unwrap();
-    //                 c1.force(&c2, gravity_vec[j]);
-    //             }
-    //         });
-    //         handles.push(handle);
-    //     }
-    //     for handle in handles {
-    //         handle.join();
-    //     }
-    //     ()
-    // }
 
     pub fn step(&mut self) {
         // Generate force tensor
@@ -174,12 +141,12 @@ impl PetriDish {
             .iter()
             .enumerate()
             .map(|(i, c1)| {
-                let initial_forces = vec![na::vector![0., 0.]; self.population_per_culture];
+                let initial_forces = vec![na::vector![0., 0.]; c1.particles.len()];
                 self.cultures
                     .iter()
                     .enumerate()
                     .fold(initial_forces, |acc, (j, c2)| {
-                        let forces = c1.force(c2, self.gravity_mesh[i][j].clone());
+                        let forces = c1.force(c2, self.gravity_mesh[i][j]);
                         acc.into_iter()
                             .zip(forces)
                             .map(|(f1, f2)| f1 + f2)
@@ -221,12 +188,64 @@ impl PetriDish {
             }
         }
     }
+    // Found out WASM does not support multithreading after writing this lol
+    // pub fn step_concurrent(&mut self) {
+    //     let cultures = Arc::new(self.cultures.clone());
+    //     let gravity_mesh = Arc::new(self.gravity_mesh.clone());
+    //     let handles = (0..self.cultures.len()).map(|i| {
+    //         let cultures = Arc::clone(&cultures);
+    //         let gravity_mesh = Arc::clone(&gravity_mesh);
+    //         thread::spawn(move || {
+    //             let c1 = &cultures[i];
+    //             let initial_forces = vec![na::vector![0., 0.]; c1.particles.len()];
+    //             cultures.iter().enumerate().fold(initial_forces, |acc, (j, c2)| {
+    //                 let forces = c1.force(c2, gravity_mesh[i][j]);
+    //                 acc.into_iter()
+    //                     .zip(forces)
+    //                     .map(|(f1, f2)| f1 + f2)
+    //                     .collect()
+    //             })
+    //         })
+    //     });
+    //     let force_tensor = handles.map(|h| h.join().unwrap()).collect::<Vec<_>>();
+    //     // Apply force tensor
+    //     for (i, culture) in self.cultures.iter_mut().enumerate() {
+    //         for (j, p) in culture.particles.iter_mut().enumerate() {
+    //             let force = force_tensor[i][j];
+    //             p.vel = (p.vel + force) * 0.5;
+    //             if p.pos.x <= 0. {
+    //                 p.vel.x = (p.vel.x as f64).abs();
+    //             } else if p.pos.x >= self.world_size as f64 {
+    //                 p.vel.x = -(p.vel.x as f64).abs();
+    //             }
+    //             if p.pos.y <= 0. {
+    //                 p.vel.y = (p.vel.y as f64).abs();
+    //             } else if p.pos.y >= self.world_size as f64 {
+    //                 p.vel.y = -(p.vel.y as f64).abs();
+    //             }
+    //             p.pos += p.vel;
+    //         }
+    //     }
+    //     // Render on HTML Canvas
+    //     self.cx.clear_rect(
+    //         0.,
+    //         0.,
+    //         self.world_size as f64 * 2.,
+    //         self.world_size as f64 * 2.,
+    //     );
+    //     for Culture { color, particles } in &*self.cultures {
+    //         self.cx.set_fill_style(&JsValue::from_str(&color));
+    //         for Particle { pos, .. } in particles {
+    //             self.cx.fill_rect(pos.x, pos.y, 5., 5.);
+    //         }
+    //     }
+    // }
 
     pub fn cultures(&self) -> String {
-        serde_json::to_string(&self.cultures).unwrap()
+        serde_json::to_string(&*self.cultures).unwrap()
     }
 
     pub fn gravity_mesh(&self) -> String {
-        serde_json::to_string(&self.gravity_mesh).unwrap()
+        serde_json::to_string(&*self.gravity_mesh).unwrap()
     }
 }
