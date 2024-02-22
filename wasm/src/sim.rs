@@ -28,9 +28,9 @@ impl Particle {
 
     /// Get the force another particle exerts on this particle given the gravitational constant g.
     fn force(&self, other: &Particle, g: f64) -> Vector2<f64> {
-        let dp = self.pos - other.pos;
         let d = na::distance(&self.pos, &other.pos);
         if d > 0. && d < 80. {
+            let dp = self.pos - other.pos;
             dp * (g / d) * 0.5
         } else {
             na::vector![0., 0.]
