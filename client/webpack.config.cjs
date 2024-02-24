@@ -46,6 +46,13 @@ module.exports = {
             forceMode: "production"
         }),
     ],
+    resolve: {
+        extensions: [".css", ".js", ".jsx", ".tsx", ".ts", ".cjs"],
+        alias: {
+            "tailwindcss/resolveConfig": "tailwindcss/resolveConfig.js",
+            "~": path.resolve(__dirname)
+        }
+    },
     devServer: {
         static: path.resolve(__dirname, "../dist/client"),
         port: 3000,
