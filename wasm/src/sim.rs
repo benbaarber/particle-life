@@ -12,24 +12,26 @@ use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 struct Particle {
     pos: Point2<f64>,
     vel: Vector2<f64>,
+    aoe: f64,
 }
 
 impl Particle {
-    fn new(world_size: u32) -> Self {
+    fn new(world_width: u32, world_height: u32, aoe: f64) -> Self {
         let mut rng = rand::thread_rng();
         Self {
             pos: na::point![
-                rng.gen_range(0..world_size) as f64,
-                rng.gen_range(0..world_size) as f64,
+                rng.gen_range(0..world_width) as f64,
+                rng.gen_range(0..world_height) as f64,
             ],
             vel: na::vector![0., 0.],
+            aoe,
         }
     }
 
     /// Get the force another particle exerts on this particle given the gravitational constant g.
     fn force(&self, other: &Particle, g: f64) -> Vector2<f64> {
         let d = na::distance(&self.pos, &other.pos);
-        if d > 0. && d < 80. {
+        if d > 0. && d < self.aoe {
             let dp = self.pos - other.pos;
             dp * (g / d) * 0.5
         } else {
@@ -58,10 +60,17 @@ struct Culture {
 }
 
 impl Culture {
-    fn new(color: String, world_size: u32, population: usize) -> Self {
-        let particles = std::iter::repeat_with(|| Particle::new(world_size))
-            .take(population)
-            .collect::<Vec<_>>();
+    fn new(
+        color: String,
+        world_width: u32,
+        world_height: u32,
+        population: usize,
+        particle_aoe: f64,
+    ) -> Self {
+        let particles =
+            std::iter::repeat_with(|| Particle::new(world_width, world_height, particle_aoe))
+                .take(population)
+                .collect::<Vec<_>>();
 
         Self { color, particles }
     }
@@ -83,7 +92,8 @@ impl Culture {
 #[derive(Debug, Serialize)]
 #[wasm_bindgen]
 pub struct PetriDish {
-    world_size: u32,
+    width: u32,
+    height: u32,
     cultures: Vec<Culture>,
     gravity_mesh: Vec<Vec<f64>>,
     #[serde(skip)]
@@ -93,14 +103,20 @@ pub struct PetriDish {
 #[wasm_bindgen]
 impl PetriDish {
     #[wasm_bindgen(constructor)]
-    pub fn new(colors: Vec<String>, world_size: u32, population: usize) -> Self {
+    pub fn new(
+        colors: Vec<String>,
+        width: u32,
+        height: u32,
+        population: usize,
+        particle_aoe: f64,
+    ) -> Self {
         // Set panic hook
         crate::utils::set_panic_hook();
 
         // Birth cultures
         let cultures = colors
             .into_iter()
-            .map(|color| Culture::new(color, world_size, population))
+            .map(|color| Culture::new(color, width, height, population, particle_aoe))
             .collect::<Vec<_>>();
 
         // Generate random gravity mesh
@@ -127,7 +143,8 @@ impl PetriDish {
             .unwrap();
 
         Self {
-            world_size,
+            width,
+            height,
             cultures,
             gravity_mesh,
             cx,
@@ -162,12 +179,12 @@ impl PetriDish {
                 p.vel = (p.vel + force) * 0.5;
                 if p.pos.x <= 0. {
                     p.vel.x = (p.vel.x as f64).abs();
-                } else if p.pos.x >= self.world_size as f64 {
+                } else if p.pos.x >= self.width as f64 {
                     p.vel.x = -(p.vel.x as f64).abs();
                 }
                 if p.pos.y <= 0. {
                     p.vel.y = (p.vel.y as f64).abs();
-                } else if p.pos.y >= self.world_size as f64 {
+                } else if p.pos.y >= self.height as f64 {
                     p.vel.y = -(p.vel.y as f64).abs();
                 }
                 p.pos += p.vel;
@@ -175,12 +192,8 @@ impl PetriDish {
         }
 
         // Render on HTML Canvas
-        self.cx.clear_rect(
-            0.,
-            0.,
-            self.world_size as f64 * 2.,
-            self.world_size as f64 * 2.,
-        );
+        self.cx
+            .clear_rect(0., 0., self.width as f64 * 2., self.height as f64 * 2.);
         for Culture { color, particles } in &self.cultures {
             self.cx.set_fill_style(&JsValue::from_str(color));
             for Particle { pos, .. } in particles {

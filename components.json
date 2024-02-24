@@ -1,0 +1,14 @@
+{
+    "style": "default",
+    "rsc": false,
+    "tailwind": {
+        "config": "tailwind.config.cjs",
+        "css": "client/src/style.css",
+        "baseColor": "slate",
+        "cssVariables": true
+    },
+    "aliases": {
+        "components": "~/client/src/primitives",
+        "utils": "~/src/utils"
+    }
+}

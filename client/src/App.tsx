@@ -5,10 +5,8 @@ import Simulation from "./Simulation";
 import "./style.css";
 
 const App: React.FC = () => {
-  return (
-    <Simulation />
-  )
-}
+  return <Simulation />;
+};
 
 const root = createRoot(document.getElementById("root") as HTMLDivElement);
 root.render(<App />);
