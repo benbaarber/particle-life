@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::qt::QuadTree;
 use na::{Normed, Point2, Vector2};
 use nalgebra as na;
 use rand::{
@@ -10,112 +11,6 @@ use serde::{ser::SerializeSeq, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
-#[derive(Clone, Copy)]
-struct Rect {
-    start: Point2<f64>,
-    end: Point2<f64>,
-}
-
-impl Rect {
-    fn new(start: Point2<f64>, end: Point2<f64>) -> Self {
-        Self { start, end }
-    }
-
-    fn contains(&self, point: &Point2<f64>) -> bool {
-        *point > self.start && *point < self.end
-    }
-}
-
-enum QuadTree {
-    Internal {
-        boundary: Rect,
-        children: [Box<Self>; 4],
-    },
-    External {
-        boundary: Rect,
-        point: Point2<f64>,
-    },
-    Empty {
-        boundary: Rect,
-    },
-}
-
-impl QuadTree {
-    fn new(boundary: Rect) -> Self {
-        Self::Empty { boundary }
-    }
-
-    fn boundary(&self) -> &Rect {
-        match self {
-            Self::Empty { boundary } => boundary,
-            Self::External { boundary, .. } => boundary,
-            Self::Internal { boundary, .. } => boundary,
-        }
-    }
-
-    fn subdivide(&self) -> [Box<Self>; 4] {
-        let boundary = self.boundary();
-        let center = na::center(&boundary.start, &boundary.end);
-        let diff = center - boundary.start;
-        let diff_x = na::vector![diff.x, 0.];
-        let diff_y = na::vector![0., diff.y];
-
-        [
-            Box::new(Self::Empty {
-                boundary: Rect::new(boundary.start, center),
-            }),
-            Box::new(Self::Empty {
-                boundary: Rect::new(boundary.start + diff_x, center + diff_x),
-            }),
-            Box::new(Self::Empty {
-                boundary: Rect::new(boundary.start + diff_y, center + diff_y),
-            }),
-            Box::new(Self::Empty {
-                boundary: Rect::new(center, boundary.end),
-            }),
-        ]
-    }
-
-    fn insert(&mut self, point: &Point2<f64>, depth: u8) -> bool {
-        if depth > 10 {
-            return false;
-        }
-
-        match self {
-            &mut Self::Empty { boundary } => {
-                if !boundary.contains(point) {
-                    return false;
-                }
-                *self = Self::External {
-                    boundary,
-                    point: *point,
-                };
-                true
-            }
-            &mut Self::External {
-                boundary,
-                ref point,
-            } => {
-                if !boundary.contains(point) {
-                    return false;
-                }
-                let mut children = self.subdivide();
-                let inserted = children.iter_mut().any(|c| c.insert(point, depth + 1));
-                if inserted {
-                    *self = Self::Internal { boundary, children };
-                }
-                inserted
-            }
-            Self::Internal { boundary, children } => {
-                if !boundary.contains(point) {
-                    return false;
-                }
-                children.iter_mut().any(|c| c.insert(point, depth + 1))
-            }
-        }
-    }
-}
-
 #[derive(Debug)]
 struct Particle {
     pos: Point2<f64>,
@@ -124,14 +19,14 @@ struct Particle {
 }
 
 impl Particle {
-    fn new(world_width: u32, world_height: u32, aoe: f64) -> Self {
+    fn new(world: Point2<f64>, aoe: f64) -> Self {
         let mut rng = rand::thread_rng();
         Self {
             pos: na::point![
-                rng.gen_range(0..world_width) as f64,
-                rng.gen_range(0..world_height) as f64,
+                rng.gen_range(0..world.x as u32) as f64,
+                rng.gen_range(0..world.y as u32) as f64,
             ],
-            vel: na::vector![0., 0.],
+            vel: Vector2::zeros(),
             aoe,
         }
     }
@@ -143,7 +38,7 @@ impl Particle {
             let dp = other.pos - self.pos;
             dp * (g / (2. * d))
         } else {
-            na::vector![0., 0.]
+            Vector2::zeros()
         }
     }
 }
@@ -165,25 +60,31 @@ impl Serialize for Particle {
 struct Culture {
     color: String,
     particles: Vec<Particle>,
+    world: Point2<f64>,
 }
 
 impl Culture {
-    fn new(
-        color: String,
-        world_width: u32,
-        world_height: u32,
-        population: usize,
-        particle_aoe: f64,
-    ) -> Self {
-        let particles =
-            std::iter::repeat_with(|| Particle::new(world_width, world_height, particle_aoe))
-                .take(population)
-                .collect::<Vec<_>>();
+    fn new(color: String, world: Point2<f64>, population: usize, particle_aoe: f64) -> Self {
+        let particles = std::iter::repeat_with(|| Particle::new(world, particle_aoe))
+            .take(population)
+            .collect::<Vec<_>>();
 
-        Self { color, particles }
+        Self {
+            color,
+            particles,
+            world,
+        }
     }
 
     fn force(&self, other: &Culture, g: f64) -> Vec<Vector2<f64>> {
+        let mut qt = QuadTree::new(self.world);
+        for p in &self.particles {
+            // TODO: Handle false
+            qt.insert(&p.pos, 0);
+        }
+
+        qt.com();
+
         self.particles
             .iter()
             .map(|p1| {
@@ -191,7 +92,7 @@ impl Culture {
                 other
                     .particles
                     .iter()
-                    .fold(na::vector![0., 0.], |acc, p2| acc + p1.force(p2, g))
+                    .fold(Vector2::zeros(), |acc, p2| acc + p1.force(p2, g))
             })
             .collect()
     }
@@ -200,8 +101,8 @@ impl Culture {
 #[derive(Debug, Serialize)]
 #[wasm_bindgen]
 pub struct PetriDish {
-    width: u32,
-    height: u32,
+    width: f64,
+    height: f64,
     cultures: Vec<Culture>,
     gravity_mesh: Vec<Vec<f64>>,
     #[serde(skip)]
@@ -213,8 +114,8 @@ impl PetriDish {
     #[wasm_bindgen(constructor)]
     pub fn new(
         colors: Vec<String>,
-        width: u32,
-        height: u32,
+        width: f64,
+        height: f64,
         population: usize,
         particle_aoe: f64,
     ) -> Self {
@@ -224,7 +125,7 @@ impl PetriDish {
         // Birth cultures
         let cultures = colors
             .into_iter()
-            .map(|color| Culture::new(color, width, height, population, particle_aoe))
+            .map(|color| Culture::new(color, na::point![width, height], population, particle_aoe))
             .collect::<Vec<_>>();
 
         // Generate random gravity mesh
@@ -266,7 +167,7 @@ impl PetriDish {
             .iter()
             .enumerate()
             .map(|(i, c1)| {
-                let initial_forces = vec![na::vector![0., 0.]; c1.particles.len()];
+                let initial_forces = vec![Vector2::zeros(); c1.particles.len()];
                 self.cultures
                     .iter()
                     .enumerate()
@@ -302,7 +203,10 @@ impl PetriDish {
         // Render on HTML Canvas
         self.cx
             .clear_rect(0., 0., self.width as f64 * 2., self.height as f64 * 2.);
-        for Culture { color, particles } in &self.cultures {
+        for Culture {
+            color, particles, ..
+        } in &self.cultures
+        {
             self.cx.set_fill_style(&JsValue::from_str(color));
             for Particle { pos, .. } in particles {
                 self.cx.fill_rect(pos.x, pos.y, 5., 5.);
@@ -371,10 +275,20 @@ impl PetriDish {
     }
 }
 
-#[test]
-fn test() {
-    let a = na::point![1., 2.];
-    let b = na::point![2., 5.];
+// #[test]
+// fn test() {
+//     let a = na::point![1., 2.];
+//     let b = na::point![2., 5.];
+//     let c = na::point![3., 4.];
 
-    assert!(&a < &b, "SHIT")
-}
+//     let c1 = na::center(&a, &b);
+//     let c2 = na::center(&b, &c);
+
+//     let cc1 = na::center(&c1, &c);
+//     let cc2 = na::center(&c2, &a);
+
+//     println!("{}", cc1);
+//     println!("{}", cc2);
+
+//     // assert!(na::center(&c1, &c) == na::center(&c2, &a), "SHIT")
+// }
