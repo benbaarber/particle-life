@@ -62,7 +62,10 @@ const Simulation: React.FC = () => {
     let frameId: number;
     const animate = (time?: number) => {
       last ||= time;
-      if (time - last > 10) petriDish.step();
+      if (time - last > 5) {
+        petriDish.step();
+        last = time;
+      }
       frameId = window.requestAnimationFrame(animate);
     };
     animate();

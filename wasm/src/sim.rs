@@ -1,4 +1,6 @@
-use na::{Point2, Vector2};
+#![allow(unused)]
+
+use na::{Normed, Point2, Vector2};
 use nalgebra as na;
 use rand::{
     distributions::{Distribution, Uniform},
@@ -7,6 +9,112 @@ use rand::{
 use serde::{ser::SerializeSeq, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
+
+#[derive(Clone, Copy)]
+struct Rect {
+    start: Point2<f64>,
+    end: Point2<f64>,
+}
+
+impl Rect {
+    fn new(start: Point2<f64>, end: Point2<f64>) -> Self {
+        Self { start, end }
+    }
+
+    fn contains(&self, point: &Point2<f64>) -> bool {
+        *point > self.start && *point < self.end
+    }
+}
+
+enum QuadTree {
+    Internal {
+        boundary: Rect,
+        children: [Box<Self>; 4],
+    },
+    External {
+        boundary: Rect,
+        point: Point2<f64>,
+    },
+    Empty {
+        boundary: Rect,
+    },
+}
+
+impl QuadTree {
+    fn new(boundary: Rect) -> Self {
+        Self::Empty { boundary }
+    }
+
+    fn boundary(&self) -> &Rect {
+        match self {
+            Self::Empty { boundary } => boundary,
+            Self::External { boundary, .. } => boundary,
+            Self::Internal { boundary, .. } => boundary,
+        }
+    }
+
+    fn subdivide(&self) -> [Box<Self>; 4] {
+        let boundary = self.boundary();
+        let center = na::center(&boundary.start, &boundary.end);
+        let diff = center - boundary.start;
+        let diff_x = na::vector![diff.x, 0.];
+        let diff_y = na::vector![0., diff.y];
+
+        [
+            Box::new(Self::Empty {
+                boundary: Rect::new(boundary.start, center),
+            }),
+            Box::new(Self::Empty {
+                boundary: Rect::new(boundary.start + diff_x, center + diff_x),
+            }),
+            Box::new(Self::Empty {
+                boundary: Rect::new(boundary.start + diff_y, center + diff_y),
+            }),
+            Box::new(Self::Empty {
+                boundary: Rect::new(center, boundary.end),
+            }),
+        ]
+    }
+
+    fn insert(&mut self, point: &Point2<f64>, depth: u8) -> bool {
+        if depth > 10 {
+            return false;
+        }
+
+        match self {
+            &mut Self::Empty { boundary } => {
+                if !boundary.contains(point) {
+                    return false;
+                }
+                *self = Self::External {
+                    boundary,
+                    point: *point,
+                };
+                true
+            }
+            &mut Self::External {
+                boundary,
+                ref point,
+            } => {
+                if !boundary.contains(point) {
+                    return false;
+                }
+                let mut children = self.subdivide();
+                let inserted = children.iter_mut().any(|c| c.insert(point, depth + 1));
+                if inserted {
+                    *self = Self::Internal { boundary, children };
+                }
+                inserted
+            }
+            Self::Internal { boundary, children } => {
+                if !boundary.contains(point) {
+                    return false;
+                }
+                children.iter_mut().any(|c| c.insert(point, depth + 1))
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 struct Particle {
@@ -32,8 +140,8 @@ impl Particle {
     fn force(&self, other: &Particle, g: f64) -> Vector2<f64> {
         let d = na::distance(&self.pos, &other.pos);
         if d > 0. && d < self.aoe {
-            let dp = self.pos - other.pos;
-            dp * (g / d) * 0.5
+            let dp = other.pos - self.pos;
+            dp * (g / (2. * d))
         } else {
             na::vector![0., 0.]
         }
@@ -261,4 +369,12 @@ impl PetriDish {
     pub fn gravity_mesh(&self) -> String {
         serde_json::to_string(&*self.gravity_mesh).unwrap()
     }
+}
+
+#[test]
+fn test() {
+    let a = na::point![1., 2.];
+    let b = na::point![2., 5.];
+
+    assert!(&a < &b, "SHIT")
 }
