@@ -19,7 +19,7 @@ getrandom = { features = ["js"] }
 nalgebra = { version = "0.32.3", features = ["serde-serialize"] }
 serde = "1.0.196"
 serde_json = "1.0.113"
-web-sys = { version = "0.3.68", features = ["CanvasRenderingContext2d", "Document", "Element", "HtmlCanvasElement", "Window"] }
+web-sys = { version = "0.3.68", features = ["CanvasRenderingContext2d", "Document", "Element", "HtmlCanvasElement", "Window", "console"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"

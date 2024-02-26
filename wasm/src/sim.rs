@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::qt::QuadTree;
+use crate::qt::{QuadTree, WeightedPoint};
 use na::{Normed, Point2, Vector2};
 use nalgebra as na;
 use rand::{
@@ -12,10 +12,10 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 #[derive(Debug)]
-struct Particle {
-    pos: Point2<f64>,
-    vel: Vector2<f64>,
-    aoe: f64,
+pub struct Particle {
+    pub pos: Point2<f64>,
+    pub vel: Vector2<f64>,
+    pub aoe: f64,
 }
 
 impl Particle {
@@ -32,11 +32,22 @@ impl Particle {
     }
 
     /// Get the force another particle exerts on this particle given the gravitational constant g.
-    fn force(&self, other: &Particle, g: f64) -> Vector2<f64> {
+    fn _naive_force(&self, other: &Particle, g: f64) -> Vector2<f64> {
         let d = na::distance(&self.pos, &other.pos);
         if d > 0. && d < self.aoe {
             let dp = other.pos - self.pos;
             dp * (g / (2. * d))
+        } else {
+            Vector2::zeros()
+        }
+    }
+
+    /// Get the force a weighted approximated point exerts on this particle given the gravitational constant g.
+    fn force(&self, point: &WeightedPoint, g: f64) -> Vector2<f64> {
+        let d = na::distance(&self.pos, &point.pos);
+        if d > 0. && d < self.aoe {
+            let dp = point.pos - self.pos;
+            dp * (g / (2. * d)) * (point.mass as f64)
         } else {
             Vector2::zeros()
         }
@@ -60,6 +71,8 @@ impl Serialize for Particle {
 struct Culture {
     color: String,
     particles: Vec<Particle>,
+    #[serde(skip)]
+    qt: QuadTree,
     world: Point2<f64>,
 }
 
@@ -72,19 +85,23 @@ impl Culture {
         Self {
             color,
             particles,
+            qt: QuadTree::new(world),
             world,
         }
     }
 
-    fn force(&self, other: &Culture, g: f64) -> Vec<Vector2<f64>> {
+    /// Reconstruct this culture's quadtree
+    fn quadtree(&mut self) {
         let mut qt = QuadTree::new(self.world);
-        for p in &self.particles {
-            // TODO: Handle false
-            qt.insert(&p.pos, 0);
+        for (i, p) in self.particles.iter().enumerate() {
+            let res = qt.insert(&p.pos, 0);
         }
 
-        qt.com();
+        qt.measure_nodes();
+        self.qt = qt;
+    }
 
+    fn _naive_force(&self, other: &Culture, g: f64) -> Vec<Vector2<f64>> {
         self.particles
             .iter()
             .map(|p1| {
@@ -92,21 +109,42 @@ impl Culture {
                 other
                     .particles
                     .iter()
-                    .fold(Vector2::zeros(), |acc, p2| acc + p1.force(p2, g))
+                    .fold(Vector2::zeros(), |acc, p2| acc + p1._naive_force(p2, g))
+            })
+            .collect()
+    }
+
+    fn force(&self, other: &Culture, g: f64, theta: f64) -> Vec<Vector2<f64>> {
+        self.particles
+            .iter()
+            .map(|p1| {
+                // Accumulate force on p1
+                let points = other.qt.approximate_points(p1, theta).unwrap_or(Vec::new());
+                points
+                    .iter()
+                    .fold(Vector2::zeros(), |acc, point| acc + p1.force(point, g))
             })
             .collect()
     }
 }
 
+#[derive(Debug)]
+pub struct PDConfig {
+    width: f64,
+    height: f64,
+    theta: f64,
+    show_qts: bool,
+}
+
 #[derive(Debug, Serialize)]
 #[wasm_bindgen]
 pub struct PetriDish {
-    width: f64,
-    height: f64,
     cultures: Vec<Culture>,
     gravity_mesh: Vec<Vec<f64>>,
     #[serde(skip)]
     cx: CanvasRenderingContext2d,
+    #[serde(skip)]
+    config: PDConfig,
 }
 
 #[wasm_bindgen]
@@ -118,9 +156,19 @@ impl PetriDish {
         height: f64,
         population: usize,
         particle_aoe: f64,
+        theta: f64,
+        show_qts: bool,
     ) -> Self {
         // Set panic hook
         crate::utils::set_panic_hook();
+
+        // Set config
+        let config = PDConfig {
+            height,
+            width,
+            theta,
+            show_qts,
+        };
 
         // Birth cultures
         let cultures = colors
@@ -152,15 +200,19 @@ impl PetriDish {
             .unwrap();
 
         Self {
-            width,
-            height,
             cultures,
             gravity_mesh,
             cx,
+            config,
         }
     }
 
     pub fn step(&mut self) {
+        // Regenerate quadtrees
+        // for culture in &mut self.cultures {
+        //     culture.quadtree();
+        // }
+
         // Generate force tensor
         let force_tensor: Vec<Vec<Vector2<f64>>> = self
             .cultures
@@ -172,7 +224,7 @@ impl PetriDish {
                     .iter()
                     .enumerate()
                     .fold(initial_forces, |acc, (j, c2)| {
-                        let forces = c1.force(c2, self.gravity_mesh[i][j]);
+                        let forces = c1._naive_force(c2, self.gravity_mesh[i][j]);
                         acc.into_iter()
                             .zip(forces)
                             .map(|(f1, f2)| f1 + f2)
@@ -188,26 +240,41 @@ impl PetriDish {
                 p.vel = (p.vel + force) * 0.5;
                 if p.pos.x <= 0. {
                     p.vel.x = (p.vel.x as f64).abs();
-                } else if p.pos.x >= self.width as f64 {
+                    p.pos.x = 0.;
+                } else if p.pos.x >= self.config.width as f64 {
                     p.vel.x = -(p.vel.x as f64).abs();
+                    p.pos.x = self.config.width as f64;
                 }
                 if p.pos.y <= 0. {
                     p.vel.y = (p.vel.y as f64).abs();
-                } else if p.pos.y >= self.height as f64 {
+                    p.pos.y = 0.;
+                } else if p.pos.y >= self.config.height as f64 {
                     p.vel.y = -(p.vel.y as f64).abs();
+                    p.pos.y = self.config.height as f64;
                 }
                 p.pos += p.vel;
             }
         }
 
         // Render on HTML Canvas
-        self.cx
-            .clear_rect(0., 0., self.width as f64 * 2., self.height as f64 * 2.);
+        self.cx.clear_rect(
+            0.,
+            0.,
+            self.config.width as f64 * 2.,
+            self.config.height as f64 * 2.,
+        );
         for Culture {
-            color, particles, ..
+            color,
+            particles,
+            qt,
+            ..
         } in &self.cultures
         {
             self.cx.set_fill_style(&JsValue::from_str(color));
+            self.cx.set_stroke_style(&JsValue::from_str(color));
+            if self.config.show_qts {
+                qt.render(&self.cx, 0);
+            }
             for Particle { pos, .. } in particles {
                 self.cx.fill_rect(pos.x, pos.y, 5., 5.);
             }

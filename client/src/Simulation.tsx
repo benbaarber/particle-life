@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Slider } from "./primitives/slider";
 import { Button } from "./primitives/button";
 import { Separator } from "./primitives/separator";
+import { Switch } from "./primitives/switch";
 
 declare class PetriDish {
   constructor(
@@ -10,6 +11,8 @@ declare class PetriDish {
     height: number,
     population: number,
     particle_aoe: number,
+    theta: number,
+    show_quadtrees: boolean,
   );
   step(): void;
   cultures(): string;
@@ -34,6 +37,7 @@ const Simulation: React.FC = () => {
   const [population, setPopulation] = useState<number>(500);
   const [numCultures, setNumCultures] = useState<number>(5);
   const [particleAoe, setParticleAoe] = useState<number>(80);
+  const [showQts, setShowQts] = useState<boolean>(false);
 
   const handleSimulate = () => {
     if (!wasm) return;
@@ -43,6 +47,8 @@ const Simulation: React.FC = () => {
       window.innerHeight,
       population,
       particleAoe,
+      1,
+      showQts,
     );
     setPetriDish(pd);
   };
@@ -120,6 +126,10 @@ const Simulation: React.FC = () => {
             max={500}
             step={10}
           />
+        </div>
+        <div className="flex w-full items-center gap-3 pt-8">
+          <p className="text-sm font-semibold">Show Quadtrees</p>
+          <Switch disabled checked={showQts} onCheckedChange={setShowQts} />
         </div>
         <div className="flex gap-2 pt-8">
           <Button onClick={handleSimulate}>Simulate</Button>
