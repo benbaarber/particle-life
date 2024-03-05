@@ -209,9 +209,9 @@ impl PetriDish {
 
     pub fn step(&mut self) {
         // Regenerate quadtrees
-        // for culture in &mut self.cultures {
-        //     culture.quadtree();
-        // }
+        for culture in &mut self.cultures {
+            culture.quadtree();
+        }
 
         // Generate force tensor
         let force_tensor: Vec<Vec<Vector2<f64>>> = self
@@ -224,7 +224,7 @@ impl PetriDish {
                     .iter()
                     .enumerate()
                     .fold(initial_forces, |acc, (j, c2)| {
-                        let forces = c1._naive_force(c2, self.gravity_mesh[i][j]);
+                        let forces = c1.force(c2, self.gravity_mesh[i][j], self.config.theta);
                         acc.into_iter()
                             .zip(forces)
                             .map(|(f1, f2)| f1 + f2)

@@ -47,7 +47,7 @@ const Simulation: React.FC = () => {
       window.innerHeight,
       population,
       particleAoe,
-      1,
+      2,
       showQts,
     );
     setPetriDish(pd);
@@ -129,7 +129,7 @@ const Simulation: React.FC = () => {
         </div>
         <div className="flex w-full items-center gap-3 pt-8">
           <p className="text-sm font-semibold">Show Quadtrees</p>
-          <Switch disabled checked={showQts} onCheckedChange={setShowQts} />
+          <Switch checked={showQts} onCheckedChange={setShowQts} />
         </div>
         <div className="flex gap-2 pt-8">
           <Button onClick={handleSimulate}>Simulate</Button>
