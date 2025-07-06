@@ -1,0 +1,12 @@
+[package]
+name = "particle-life"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+glam = "0.30.4"
+macroquad = "0.4.14"
+quadtree = "0.4.0"
+rand = "0.9.1"
+rand_distr = "0.5.1"
+random_color = "1.1.0"
