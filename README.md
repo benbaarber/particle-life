@@ -1,3 +1,7 @@
+# Particle Life
+
+<img width="1401" height="1130" alt="image" src="https://github.com/user-attachments/assets/ff973efe-778b-48b5-8e09-1316f6572d73" />
+
 Run with `cargo run -r`
 
 Keybinds:
