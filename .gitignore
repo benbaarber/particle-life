@@ -1,9 +1,3 @@
-node_modules/
 target/
-pkg/
-.yarn/
-dist
 TODO.md
-.vscode
-.DS_Store
-local
+/local/

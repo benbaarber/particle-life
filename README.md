@@ -1,4 +1,8 @@
-Run with `cargo run -r`, edit config in main.rs
+Run with `cargo run -r`
+
+Keybinds:
+- q: quit
+- r: reset
 
 TODO:
 - interpolate between physics steps to achieve smoother visuals

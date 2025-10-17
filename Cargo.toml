@@ -4,9 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+egui-macroquad = { version = "0.17.3", default-features = false }
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
 glam = "0.30.4"
 macroquad = "0.4.14"
-quadtree = "0.4.0"
+quadtree = "0.5.0"
 rand = "0.9.1"
 rand_distr = "0.5.1"
 random_color = "1.1.0"
+serde_json = "1.0.145"
+
+[profile.dev.package.'*']
+opt-level = 3
