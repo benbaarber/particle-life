@@ -9,10 +9,17 @@ use quadtree::{
 use rand::Rng;
 use rand_distr::{Distribution, Uniform};
 
-use crate::util::random_color;
+use crate::{
+    gpu::{GpuCompute, GpuParams},
+    util::random_color,
+};
+
+const DAMPING: f32 = 0.5;
 
 #[derive(Clone, Debug)]
 pub struct SimConfig {
+    pub gpu: bool,
+    pub mesh_json: Option<String>,
     pub bound: Rect,
     pub num_cultures: usize,
     pub culture_size: usize,
@@ -21,11 +28,14 @@ pub struct SimConfig {
     pub damping: f32,
     pub cursor_aoe2: f32,
     pub cursor_force: f32,
+    pub is_interactive: bool,
 }
 
 impl Default for SimConfig {
     fn default() -> Self {
         Self {
+            gpu: false,
+            mesh_json: None,
             bound: Rect::new(Vec2::ZERO, vec2(1000.0, 800.0)),
             num_cultures: 5,
             culture_size: 5000,
@@ -34,29 +44,18 @@ impl Default for SimConfig {
             damping: 0.5,
             cursor_aoe2: 200.0 * 200.0,
             cursor_force: 400.0,
+            is_interactive: true,
         }
     }
 }
 
 impl SimConfig {
-    pub fn new(
-        num_cultures: usize,
-        culture_size: usize,
-        aoe: f32,
-        theta: f32,
-        damping: f32,
-        cursor_aoe: f32,
-        cursor_force: f32,
-    ) -> Self {
-        Self {
-            bound: Rect::new(Vec2::ZERO, vec2(1000.0, 800.0)),
-            num_cultures,
-            culture_size,
-            aoe2: aoe * aoe,
-            theta,
-            damping,
-            cursor_aoe2: cursor_aoe * cursor_aoe,
-            cursor_force,
+    pub fn gpu_params(&self) -> GpuParams {
+        GpuParams {
+            num_cultures: self.num_cultures as u32,
+            culture_size: self.culture_size as u32,
+            theta2: self.theta * self.theta,
+            aoe2: self.aoe2,
         }
     }
 }
@@ -81,11 +80,11 @@ impl Particle {
     }
 
     /// Get the force another particle exerts on this particle given the gravitational constant g.
-    fn _naive_force(&self, other: &Particle, g: f32, aoe: f32) -> Vec2 {
-        let d = Vec2::distance(self.pos, other.pos);
-        if d > 0.0 && d <= aoe {
-            let dp = other.pos - self.pos;
-            dp * (g / (2.0 * d))
+    fn _naive_force(&self, other: &Particle, g: f32, aoe2: f32) -> Vec2 {
+        let d2 = Vec2::distance_squared(self.pos, other.pos);
+        if d2 > 0.0 && d2 <= aoe2 {
+            let dir = (other.pos - self.pos).normalize();
+            dir * g
         } else {
             Vec2::ZERO
         }
@@ -191,42 +190,60 @@ impl Culture {
     }
 }
 
-#[derive(Debug)]
 pub struct World {
     conf: SimConfig,
     cultures: Vec<Culture>,
     gravity_mesh: Vec<Vec<f32>>,
     force_tensor: Vec<Vec<Vec2>>,
     cursor_force_tensor: Vec<Vec<Vec2>>,
+    gpu: Option<GpuCompute>,
     i: u64,
 }
 
 impl World {
-    pub fn new(conf: SimConfig) -> Self {
+    pub fn new(mut conf: SimConfig) -> Self {
+        // Generate random gravity mesh
+        let gravity_mesh = match &conf.mesh_json {
+            Some(mesh) => {
+                let mesh: Vec<Vec<f32>> = serde_json::from_str(mesh).unwrap();
+                conf.num_cultures = mesh.len();
+                mesh
+            }
+            None => {
+                let mut rng = rand::rng();
+                let distr = Uniform::new_inclusive(-1., 1.).unwrap();
+                (0..conf.num_cultures)
+                    .map(|_| {
+                        distr
+                            .sample_iter(&mut rng)
+                            .take(conf.num_cultures)
+                            .collect()
+                    })
+                    .collect::<Vec<_>>()
+            }
+        };
+
         // Spawn cultures
         let cultures = (0..conf.num_cultures)
             .map(|_| Culture::new(random_color(), conf.culture_size, conf.bound, conf.theta))
             .collect::<Vec<_>>();
 
-        // Generate random gravity mesh
-        let mut rng = rand::rng();
-        let distr = Uniform::new_inclusive(-1., 1.).unwrap();
-        let gravity_mesh = (0..conf.num_cultures)
-            .map(|_| {
-                distr
-                    .sample_iter(&mut rng)
-                    .take(conf.num_cultures)
-                    .collect()
-            })
-            .collect();
-
-        println!(
-            "Cultures: {}\nCulture size: {}\nGravity Mesh: {:?}",
-            conf.num_cultures, conf.culture_size, &gravity_mesh
-        );
+        // println!(
+        //     "Cultures: {}\nCulture size: {}\nGravity Mesh: {:?}",
+        //     conf.num_cultures, conf.culture_size, &gravity_mesh
+        // );
 
         let force_tensor = vec![vec![Vec2::ZERO; conf.culture_size]; conf.num_cultures];
         let cursor_force_tensor = vec![vec![Vec2::ZERO; conf.culture_size]; conf.num_cultures];
+
+        let gpu = if conf.gpu {
+            let params = conf.gpu_params();
+            let flat_mesh = gravity_mesh.iter().flatten().copied().collect::<Vec<_>>();
+            let gpu = pollster::block_on(GpuCompute::new(params, &flat_mesh));
+            Some(gpu)
+        } else {
+            None
+        };
 
         Self {
             cultures,
@@ -234,35 +251,96 @@ impl World {
             force_tensor,
             cursor_force_tensor,
             i: 0,
+            gpu,
             conf,
         }
     }
 
-    pub fn step(&mut self, tau: f32) {
+    pub fn compute_force_naive(&mut self) {
+        for c1 in 0..self.cultures.len() {
+            self.force_tensor[c1].fill(Vec2::ZERO);
+            for c2 in 0..self.cultures.len() {
+                let g = self.gravity_mesh[c1][c2];
+                let forces = self.cultures[c1]._naive_force(&self.cultures[c2], g, self.conf.aoe2);
+                for p in 0..forces.len() {
+                    self.force_tensor[c1][p] += forces[p];
+                }
+            }
+            for f in &mut self.force_tensor[c1] {
+                *f /= self.cultures.len() as f32;
+            }
+        }
+    }
+
+    pub fn compute_force_naive_gpu(&mut self) {
+        let Some(gpu) = &self.gpu else {
+            return;
+        };
+
+        let particles = self
+            .cultures
+            .iter()
+            .flat_map(|c| c.particles.iter().map(|p| p.pos.to_array()))
+            .collect::<Vec<_>>();
+
+        let forces = gpu.run(&particles);
+
+        for (i, f) in self.force_tensor.iter_mut().flatten().enumerate() {
+            *f = Vec2::from_array(forces[i]);
+        }
+    }
+
+    pub fn compute_force(&mut self) {
         // Regenerate quadtrees
         for culture in &mut self.cultures {
             culture.quadtree();
         }
 
         // Compute rolling slice of force tensor
-        let c1 = (self.i % self.cultures.len() as u64) as usize;
-        // for c1 in 0..self.cultures.len() {
-        self.compute_force_tensor_slice(c1);
+        // let c1 = (self.i % self.cultures.len() as u64) as usize;
+        for c1 in 0..self.cultures.len() {
+            self.force_tensor[c1].fill(Vec2::ZERO);
 
-        for f in &mut self.force_tensor[c1] {
-            *f /= self.cultures.len() as f32;
+            for c2 in 0..self.cultures.len() {
+                let forces = self.cultures[c1].force(
+                    &self.cultures[c2],
+                    self.gravity_mesh[c1][c2],
+                    self.conf.aoe2,
+                );
+                for p in 0..forces.len() {
+                    self.force_tensor[c1][p] += forces[p];
+                }
+            }
+
+            for f in &mut self.force_tensor[c1] {
+                *f /= self.cultures.len() as f32;
+            }
         }
-        // }
+    }
+
+    pub fn step(&mut self, tau: f32) {
+        if self.gpu.is_some() {
+            self.compute_force_naive_gpu();
+        } else {
+            self.compute_force();
+        }
 
         // Compute cursor force tensor
-        for (c, culture) in self.cultures.iter().enumerate() {
-            for (p, particle) in culture.particles.iter().enumerate() {
-                self.cursor_force_tensor[c][p] =
-                    particle.cursor_force(self.conf.cursor_aoe2, self.conf.cursor_force);
+        if self.conf.is_interactive {
+            for (c, culture) in self.cultures.iter().enumerate() {
+                for (p, particle) in culture.particles.iter().enumerate() {
+                    self.cursor_force_tensor[c][p] =
+                        particle.cursor_force(self.conf.cursor_aoe2, self.conf.cursor_force);
+                }
             }
         }
 
-        // Apply force tensor
+        self.apply_force_tensor(tau);
+
+        self.i += 1;
+    }
+
+    fn apply_force_tensor(&mut self, tau: f32) {
         let bound = self.conf.bound;
         for (c, culture) in self.cultures.iter_mut().enumerate() {
             for (p, particle) in culture.particles.iter_mut().enumerate() {
@@ -283,22 +361,6 @@ impl World {
                     particle.pos.y = bound.bb().y;
                 }
                 particle.pos += particle.vel * tau;
-            }
-        }
-
-        self.i += 1;
-    }
-
-    fn compute_force_tensor_slice(&mut self, c1: usize) {
-        self.force_tensor[c1].fill(Vec2::ZERO);
-        for c2 in 0..self.cultures.len() {
-            let forces = self.cultures[c1].force(
-                &self.cultures[c2],
-                self.gravity_mesh[c1][c2],
-                self.conf.aoe2,
-            );
-            for p in 0..forces.len() {
-                self.force_tensor[c1][p] += forces[p];
             }
         }
     }

@@ -2,13 +2,17 @@ use std::time::{Duration, Instant};
 
 use egui_macroquad::egui::{self, Widget};
 use glam::{Vec2, vec2};
-use macroquad::{input::{is_key_pressed, KeyCode}, miniquad};
+use macroquad::{
+    input::{KeyCode, is_key_pressed},
+    miniquad,
+};
 use quadtree::shapes::Rect;
 
 use crate::sim::{SimConfig, World};
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub gpu: bool,
     pub bound: Rect,
     pub num_cultures: usize,
     pub culture_size: usize,
@@ -22,6 +26,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            gpu: false,
             bound: Rect::new(Vec2::ZERO, vec2(1000.0, 800.0)),
             num_cultures: 5,
             culture_size: 5000,
@@ -37,6 +42,7 @@ impl Default for Config {
 impl Config {
     fn freeze(&self) -> SimConfig {
         SimConfig {
+            gpu: self.gpu,
             bound: self.bound,
             num_cultures: self.num_cultures,
             culture_size: self.culture_size,
@@ -140,10 +146,26 @@ impl App {
                         .ui(ui);
                     ui.separator();
                     ui.checkbox(&mut self.show_fps, "Show FPS");
+                    // ui.checkbox(&mut self.conf.gpu, "GPU");
                     ui.separator();
                     if ui.button("Run").clicked() {
                         self.reset_world();
                     }
+                    if ui.button("Print gravity mesh").clicked() {
+                        let mesh = self.world.export_gravity_mesh_json();
+                        println!("Gravity mesh: {:?}", &mesh);
+                        // miniquad::window::clipboard_set(&mesh);
+                    }
+                    // TODO this needs an actual clipboard crate because miniquad clipboard is not
+                    // aligned with the system
+                    //
+                    // if ui.button("Paste gravity mesh").clicked() {
+                    //     if let Some(mesh) = miniquad::window::clipboard_get() {
+                    //         let mut sim_config = self.conf.freeze();
+                    //         sim_config.mesh_json = Some(mesh);
+                    //         self.world = World::new(sim_config);
+                    //     }
+                    // }
                 });
         });
         egui_macroquad::draw();
