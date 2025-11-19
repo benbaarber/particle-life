@@ -1,6 +1,5 @@
 # Particle Life
-
-<img width="700" height="565" alt="image" src="https://github.com/user-attachments/assets/ff973efe-778b-48b5-8e09-1316f6572d73" />
+<img width="635" height="660" alt="image" src="https://github.com/user-attachments/assets/40683aaa-f0a4-440f-999f-3479e0bdbed1" />
 
 ## Benchmarks
 
