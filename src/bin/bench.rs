@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use particle_life::sim::{SimConfig, World};
+use particle_life::mq::sim::{SimConfig, World};
 
 fn bench(culture_size: usize, steps: usize) {
     let mut world = World::new(SimConfig {

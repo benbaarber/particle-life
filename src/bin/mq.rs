@@ -1,6 +1,6 @@
 use ::glam::{Vec2, vec2};
 use macroquad::prelude::*;
-use particle_life::app::App;
+use particle_life::mq::app::App;
 use quadtree::shapes::Rect;
 
 const VEL_RATIO: f64 = 15.0;

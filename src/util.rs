@@ -1,4 +1,5 @@
 use macroquad::color::Color;
+use rand_distr::{Distribution, Uniform};
 use random_color::RandomColor;
 
 /// Generate a random hex color
@@ -7,18 +8,19 @@ pub fn random_color() -> Color {
     Color::from_rgba(r, g, b, a)
 }
 
-// #[cfg(not(target_arch = "wasm32"))]
-// pub fn is_left_mouse_down() -> bool {
-//     macroquad::input::is_mouse_button_down(macroquad::input::MouseButton::Left)
-// }
-//
-// #[cfg(not(target_arch = "wasm32"))]
-// pub fn is_right_mouse_down() -> bool {
-//     macroquad::input::is_mouse_button_down(macroquad::input::MouseButton::Right)
-// }
-//
-// #[cfg(not(target_arch = "wasm32"))]
-// pub fn mouse_position() -> Vec2 {
-//     let (mx, my) = macroquad::input::mouse_position();
-//     vec2(mx, my)
-// }
+pub fn random_gravity_mesh(num_cultures: usize) -> Vec<Vec<f32>> {
+    let mut rng = rand::rng();
+    let distr = Uniform::new_inclusive(-1., 1.).unwrap();
+    (0..num_cultures)
+        .map(|_| distr.sample_iter(&mut rng).take(num_cultures).collect())
+        .collect::<Vec<_>>()
+}
+
+pub fn random_gravity_mesh_flat(num_cultures: usize) -> Vec<f32> {
+    let mut rng = rand::rng();
+    let distr = Uniform::new_inclusive(-1., 1.).unwrap();
+    distr
+        .sample_iter(&mut rng)
+        .take(num_cultures * num_cultures)
+        .collect()
+}

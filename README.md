@@ -15,9 +15,9 @@
 
 ## Running
 
-Run with `cargo run -r`
+Run wgpu or macroquad version with `cargo run -r --bin (wg|mq)`
 
 Keybinds:
 - q: quit
-- r: reset
+- r: reset (mq only)
 

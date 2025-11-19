@@ -10,8 +10,8 @@ use rand::Rng;
 use rand_distr::{Distribution, Uniform};
 
 use crate::{
-    gpu::{GpuCompute, GpuParams},
-    util::random_color,
+    mq::gpu::{GpuCompute, GpuParams},
+    util::{random_color, random_gravity_mesh},
 };
 
 const DAMPING: f32 = 0.5;
@@ -210,16 +210,7 @@ impl World {
                 mesh
             }
             None => {
-                let mut rng = rand::rng();
-                let distr = Uniform::new_inclusive(-1., 1.).unwrap();
-                (0..conf.num_cultures)
-                    .map(|_| {
-                        distr
-                            .sample_iter(&mut rng)
-                            .take(conf.num_cultures)
-                            .collect()
-                    })
-                    .collect::<Vec<_>>()
+                random_gravity_mesh(conf.num_cultures)
             }
         };
 

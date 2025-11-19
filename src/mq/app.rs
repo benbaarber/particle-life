@@ -8,7 +8,7 @@ use macroquad::{
 };
 use quadtree::shapes::Rect;
 
-use crate::sim::{SimConfig, World};
+use super::sim::{SimConfig, World};
 
 #[derive(Clone, Debug)]
 pub struct Config {
