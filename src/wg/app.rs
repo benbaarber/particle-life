@@ -20,10 +20,22 @@ pub struct GpuParams {
     pub bound: [f32; 2],
     pub num_cultures: u32,
     pub culture_size: u32,
-    pub theta2: f32,
     pub aoe2: f32,
     pub damping: f32,
-    pub _padding: u32,
+    _padding: u64,
+}
+
+impl GpuParams {
+    pub fn new(num_cultures: u32, culture_size: u32, aoe: f32, damping: f32) -> Self {
+        Self {
+            bound: [1000.0, 1000.0],
+            num_cultures,
+            culture_size,
+            aoe2: aoe * aoe,
+            damping,
+            _padding: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -297,25 +309,27 @@ impl State {
     }
 
     pub fn compute(&mut self) {
+        let (bind_group, particle_out_buffer) = if self.compute_bind_group_swap {
+            (&self.compute_bind_group_2, &self.particle_buffer_1)
+        } else {
+            (&self.compute_bind_group_1, &self.particle_buffer_2)
+        };
+
         let mut encoder = self.device.create_command_encoder(&Default::default());
 
         let workgroup_count = self.num_particles.div_ceil(64);
         let mut cpass = encoder.begin_compute_pass(&Default::default());
         cpass.set_pipeline(&self.compute_pipeline);
-        if self.compute_bind_group_swap {
-            cpass.set_bind_group(0, &self.compute_bind_group_2, &[]);
-        } else {
-            cpass.set_bind_group(0, &self.compute_bind_group_1, &[]);
-        }
+        cpass.set_bind_group(0, bind_group, &[]);
         cpass.dispatch_workgroups(workgroup_count as u32, 1, 1);
         drop(cpass);
 
         encoder.copy_buffer_to_buffer(
-            &self.particle_buffer_2,
+            particle_out_buffer,
             0,
             &self.vertex_buffer,
             0,
-            self.particle_buffer_2.size(),
+            particle_out_buffer.size(),
         );
 
         let command_buffer = encoder.finish();
@@ -325,7 +339,6 @@ impl State {
             .poll(wgpu::PollType::wait_indefinitely())
             .unwrap();
 
-        std::mem::swap(&mut self.particle_buffer_1, &mut self.particle_buffer_2);
         self.compute_bind_group_swap = !self.compute_bind_group_swap;
     }
 
@@ -338,15 +351,11 @@ impl State {
         let texture_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor {
-                // Without add_srgb_suffix() the image we will be working with
-                // might not be "gamma correct".
                 format: Some(self.surface_format.add_srgb_suffix()),
                 ..Default::default()
             });
 
-        // Renders a GREEN screen
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        // Create the renderpass which will clear the screen.
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -363,16 +372,13 @@ impl State {
             occlusion_query_set: None,
         });
 
-        // If you wanted to call any drawing commands, they would go here.
         rpass.set_pipeline(&self.render_pipeline);
         rpass.set_bind_group(0, &self.render_bind_group, &[]);
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         rpass.draw(0..6, 0..self.num_particles);
 
-        // End the renderpass.
         drop(rpass);
 
-        // Submit the command in the queue to execute
         self.queue.submit([encoder.finish()]);
         self.window.pre_present_notify();
         surface_texture.present();
@@ -384,33 +390,31 @@ impl State {
         Ok(())
     }
 }
-#[derive(Default)]
 pub struct App {
+    params: GpuParams,
     state: Option<State>,
+}
+
+impl App {
+    pub fn new(params: GpuParams) -> Self {
+        Self {
+            params,
+            state: None,
+        }
+    }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Create window object
         let window = Arc::new(
             event_loop
                 .create_window(Window::default_attributes())
                 .unwrap(),
         );
 
-        let aoe = 50.0;
-        let params = GpuParams {
-            num_cultures: 8,
-            culture_size: 5000,
-            theta2: 0.9 * 0.9,
-            aoe2: aoe * aoe,
-            damping: 0.3,
-            bound: [1000.0, 1000.0], // this value is hardcoded into the render shader
-            _padding: 0,
-        };
-        let mesh = random_gravity_mesh_flat(params.num_cultures as usize);
+        let mesh = random_gravity_mesh_flat(self.params.num_cultures as usize);
         println!("Gravity mesh: {:?}", mesh);
-        let state = pollster::block_on(State::new(Arc::clone(&window), params, &mesh));
+        let state = pollster::block_on(State::new(Arc::clone(&window), self.params, &mesh));
         self.state = Some(state.unwrap());
 
         window.request_redraw();

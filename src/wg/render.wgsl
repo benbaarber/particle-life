@@ -2,7 +2,6 @@ struct Params {
     bound: vec2<f32>,
     num_cultures: u32,
     culture_size: u32,
-    theta2: f32,
     aoe2: f32,
     damping: f32,
 }
