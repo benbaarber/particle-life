@@ -17,6 +17,7 @@ quadtree = { path = "../quadtree" }
 rand = "0.9.1"
 rand_distr = "0.5.1"
 random_color = "1.1.0"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 wgpu = "27.0.1"
 winit = "0.30.12"

@@ -7,12 +7,21 @@ use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
     event::{KeyEvent, WindowEvent},
-    event_loop::ActiveEventLoop,
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 
-use crate::util::{random_color, random_gravity_mesh_flat};
+use crate::util::random_color;
+
+pub fn run(params: GpuParams, mesh: Vec<f32>) {
+    env_logger::init();
+
+    let event_loop = EventLoop::new().unwrap();
+    event_loop.set_control_flow(ControlFlow::Poll);
+    let mut app = App::new(params, mesh);
+    event_loop.run_app(&mut app).unwrap();
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -390,16 +399,19 @@ impl State {
         Ok(())
     }
 }
+
 pub struct App {
     params: GpuParams,
     state: Option<State>,
+    mesh: Vec<f32>,
 }
 
 impl App {
-    pub fn new(params: GpuParams) -> Self {
+    pub fn new(params: GpuParams, mesh: Vec<f32>) -> Self {
         Self {
             params,
             state: None,
+            mesh,
         }
     }
 }
@@ -412,9 +424,7 @@ impl ApplicationHandler for App {
                 .unwrap(),
         );
 
-        let mesh = random_gravity_mesh_flat(self.params.num_cultures as usize);
-        println!("Gravity mesh: {:?}", mesh);
-        let state = pollster::block_on(State::new(Arc::clone(&window), self.params, &mesh));
+        let state = pollster::block_on(State::new(Arc::clone(&window), self.params, &self.mesh));
         self.state = Some(state.unwrap());
 
         window.request_redraw();

@@ -1547,6 +1547,7 @@ dependencies = [
  "rand",
  "rand_distr",
  "random_color",
+ "serde",
  "serde_json",
  "wgpu",
  "winit",

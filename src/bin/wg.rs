@@ -1,17 +1,39 @@
-use particle_life::wg::app::{App, GpuParams};
-use winit::event_loop::{ControlFlow, EventLoop};
+use particle_life::{
+    util::random_gravity_mesh_flat,
+    wg::{self, app::GpuParams},
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SimParams {
+    aoe: f32,
+    damping: f32,
+    mesh: Vec<f32>,
+}
+
+impl SimParams {
+    fn random(num_cultures: usize) -> Self {
+        Self {
+            aoe: rand::random_range(10.0..100.0),
+            damping: rand::random_range(0.1..0.5),
+            mesh: random_gravity_mesh_flat(num_cultures),
+        }
+    }
+}
 
 fn main() {
-    env_logger::init();
-
-    let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
-
-    let num_cultures = 8;
-    let culture_size = 5000;
-    let aoe = 30.0; // area of effect of forces
-    let damping = 0.25; // velocity damping (0.0-1.0, smaller = slower)
-    let params = GpuParams::new(num_cultures, culture_size, aoe, damping);
-    let mut app = App::new(params);
-    event_loop.run_app(&mut app).unwrap();
+    let mut num_cultures = 8;
+    let culture_size = 10000;
+    let simp = std::env::args().skip(1).next();
+    let simp = match simp {
+        Some(simp) => {
+            let simp: SimParams = serde_json::from_str(&simp).unwrap();
+            num_cultures = simp.mesh.len().isqrt();
+            simp
+        }
+        None => SimParams::random(num_cultures),
+    };
+    println!("SimParams\n{}", serde_json::to_string(&simp).unwrap());
+    let params = GpuParams::new(num_cultures as u32, culture_size, simp.aoe, simp.damping);
+    wg::run(params, simp.mesh);
 }

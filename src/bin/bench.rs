@@ -1,9 +1,11 @@
+#![allow(unused)]
+
 use std::time::Instant;
 
-use particle_life::mq::sim::{SimConfig, World};
+use particle_life::mq;
 
-fn bench(culture_size: usize, steps: usize) {
-    let mut world = World::new(SimConfig {
+fn bench_mq(culture_size: usize, steps: usize) {
+    let mut world = mq::World::new(mq::SimConfig {
         gpu: true,
         num_cultures: 10,
         culture_size,
@@ -25,8 +27,8 @@ fn bench(culture_size: usize, steps: usize) {
 }
 
 fn main() {
-    bench(100, 100);
-    bench(1000, 100);
-    bench(5000, 100);
-    bench(20000, 100);
+    bench_mq(100, 100);
+    bench_mq(1000, 100);
+    bench_mq(5000, 100);
+    bench_mq(20000, 100);
 }
