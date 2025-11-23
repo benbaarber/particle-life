@@ -113,8 +113,8 @@ impl State {
 
         let num_particles = (params.num_cultures * params.culture_size) as u64;
         let colors = (0..params.num_cultures)
-            .map(|_| random_color().into())
-            .collect::<Vec<[f32; 4]>>();
+            .map(|_| random_color())
+            .collect::<Vec<_>>();
         let particles = (0..num_particles)
             .map(|_| GpuParticle::new(params.bound))
             .collect::<Vec<_>>();
@@ -151,7 +151,7 @@ impl State {
             usage: U::STORAGE,
         });
 
-        let cshader = device.create_shader_module(wgpu::include_wgsl!("compute.wgsl"));
+        let cshader = device.create_shader_module(wgpu::include_wgsl!("compute_force.wgsl"));
         let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Force Computation"),
             layout: None,

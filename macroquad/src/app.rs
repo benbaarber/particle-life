@@ -12,7 +12,6 @@ use super::sim::{SimConfig, World};
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    pub gpu: bool,
     pub bound: Rect,
     pub num_cultures: usize,
     pub culture_size: usize,
@@ -26,7 +25,6 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            gpu: false,
             bound: Rect::new(Vec2::ZERO, vec2(1000.0, 800.0)),
             num_cultures: 5,
             culture_size: 5000,
@@ -42,7 +40,6 @@ impl Default for Config {
 impl Config {
     fn freeze(&self) -> SimConfig {
         SimConfig {
-            gpu: self.gpu,
             bound: self.bound,
             num_cultures: self.num_cultures,
             culture_size: self.culture_size,

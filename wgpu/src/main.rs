@@ -1,8 +1,8 @@
-use particle_life::{
-    util::random_gravity_mesh_flat,
-    wg::{self, app::GpuParams},
-};
+mod app;
+mod util;
+
 use serde::{Deserialize, Serialize};
+use util::random_gravity_mesh_flat;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SimParams {
@@ -34,6 +34,6 @@ fn main() {
         None => SimParams::random(num_cultures),
     };
     println!("SimParams\n{}", serde_json::to_string(&simp).unwrap());
-    let params = GpuParams::new(num_cultures as u32, culture_size, simp.aoe, simp.damping);
-    wg::run(params, simp.mesh);
+    let params = app::GpuParams::new(num_cultures as u32, culture_size, simp.aoe, simp.damping);
+    app::run(params, simp.mesh);
 }

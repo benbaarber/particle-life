@@ -1,6 +1,10 @@
+mod app;
+mod sim;
+mod util;
+
 use ::glam::{Vec2, vec2};
+use app::App;
 use macroquad::prelude::*;
-use particle_life::mq::app::App;
 use quadtree::shapes::Rect;
 
 const VEL_RATIO: f64 = 15.0;

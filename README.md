@@ -14,7 +14,7 @@
 
 ## Running
 
-Run wgpu or macroquad version with `cargo run -r --bin (wg|mq)`
+`cd` into wgpu or macroquad directory and run `cargo run -r`
 
 Keybinds:
 - q: quit
