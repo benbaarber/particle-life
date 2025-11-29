@@ -16,6 +16,15 @@
 
 `cd` into wgpu or macroquad directory and run `cargo run -r`
 
+In wgpu, in main.rs, you can adjust the following values to change the sim behavior:
+- aoe: area of effect, lower values are more localized and smaller effects, and
+generally better performance since the spatial binning grid size is derived
+from the aoe. higher values are more chaotic and worse performance, so lower
+the particle count if using a high aoe.
+- damping: velocity damping
+- num_cultures: number of different particle groups
+- culture_size: particles per culture
+
 Keybinds:
 - q: quit
 - r: reset (mq only)
