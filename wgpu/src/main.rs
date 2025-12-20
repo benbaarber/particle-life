@@ -14,7 +14,7 @@ struct SimParams {
 impl SimParams {
     fn new(num_cultures: usize) -> Self {
         Self {
-            aoe: 10.0,
+            aoe: 50.0,
             damping: 0.1,
             mesh: random_gravity_mesh_flat(num_cultures),
         }
@@ -22,8 +22,8 @@ impl SimParams {
 }
 
 fn main() {
-    let mut num_cultures = 8;
-    let culture_size = 10000;
+    let mut num_cultures = 10;
+    let culture_size = 5000;
     let simp = std::env::args().skip(1).next();
     let simp = match simp {
         Some(simp) => {
