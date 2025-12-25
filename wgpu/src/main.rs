@@ -1,39 +1,46 @@
 mod app;
 mod util;
 
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 use util::random_gravity_mesh_flat;
 
+#[derive(Parser)]
+struct Args {
+    /// Sim Params json string
+    simp: Option<String>,
+    #[arg(short, long, default_value_t = 10)]
+    cultures: u32,
+    #[arg(short, long, default_value_t = 5000)]
+    particles: u32,
+    #[arg(short, long, default_value_t = 50.0)]
+    aoe: f32,
+    #[arg(short, long, default_value_t = 0.1)]
+    damping: f32,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct SimParams {
+    num_cultures: u32,
+    culture_size: u32,
     aoe: f32,
     damping: f32,
     mesh: Vec<f32>,
 }
 
-impl SimParams {
-    fn new(num_cultures: usize) -> Self {
-        Self {
-            aoe: 50.0,
-            damping: 0.1,
-            mesh: random_gravity_mesh_flat(num_cultures),
-        }
-    }
-}
-
 fn main() {
-    let mut num_cultures = 10;
-    let culture_size = 5000;
-    let simp = std::env::args().skip(1).next();
-    let simp = match simp {
-        Some(simp) => {
-            let simp: SimParams = serde_json::from_str(&simp).unwrap();
-            num_cultures = simp.mesh.len().isqrt();
-            simp
-        }
-        None => SimParams::new(num_cultures),
+    let args = Args::parse();
+    let simp = match args.simp {
+        Some(s) => serde_json::from_str(&s).expect("Simp arg should be valid json"),
+        None => SimParams {
+            num_cultures: args.cultures,
+            culture_size: args.particles,
+            aoe: args.aoe,
+            damping: args.damping,
+            mesh: random_gravity_mesh_flat(args.cultures as usize),
+        },
     };
     println!("SimParams\n{}", serde_json::to_string(&simp).unwrap());
-    let params = app::GpuParams::new(num_cultures as u32, culture_size, simp.aoe, simp.damping);
+    let params = app::GpuParams::new(simp.num_cultures, simp.culture_size, simp.aoe, simp.damping);
     app::run(params, simp.mesh);
 }
